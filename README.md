@@ -30,6 +30,10 @@ npm run tauri build
 
 产物在 `src-tauri/target/release/bundle/`。
 
+## 直接安装（师弟师妹 / 不用编译）
+
+从 [GitHub Releases](https://github.com/l20011116l-sudo/job-mailer/releases) 下载对应版本的 **`.dmg`**，打开后将 `job-mailer.app` 拖入「应用程序」即可，**无需**安装 Node、Rust，也无需 Cursor。
+
 ## 配置说明
 
 - **API**：填写 Base URL（无末尾斜杠）、Key、模型 ID。需厂商提供 Chat Completions 兼容端点。
