@@ -1,0 +1,59 @@
+# LiteLLM Proxy 示例：豆包（火山引擎）+ Kimi（Moonshot），OpenAI 兼容出口
+# -----------------------------------------------------------------------------
+# 启动： litellm --config litellm.config.example.yaml
+# job-mailer 填写：
+#   API Base URL = http://127.0.0.1:4000/v1
+#   API Key      = 与本文件 general_settings.master_key 相同（默认 sk-job-mailer-local）
+#   模型名       = 下面 model_name（如 kimi-k2-5、doubao-chat）
+# -----------------------------------------------------------------------------
+# 说明（重要）：
+# - LiteLLM 的 web_search_options 在官方文档中主要对应 Gemini / OpenAI 搜索型号等；
+#   豆包、Kimi 是否识别同一参数以你使用的 LiteLLM 版本与厂商为准。
+# - 若请求报错，请对不支持的条目删除 litellm_params 下的 web_search_options，
+#   或保持 litellm_settings.drop_params: true，让网关丢弃不支持的字段。
+# - Kimi「官方联网」常通过控制台文档中的「官方工具」或带联网能力的模型；豆包请在火山方舟选用「联网」或对应 Endpoint。
+# - 若需与厂商无关的统一联网，可另配 Tavily/Perplexity 等，见 docs/liteLLM-proxy-zh.md 中的「方案 B」。
+
+# 可复用的联网参数（仅对 LiteLLM 声明支持 web_search 的部署取消注释使用）
+x-web-search: &web_search_defaults
+  web_search_options:
+    search_context_size: medium # low | medium | high
+
+model_list:
+  # ---------- Kimi（Moonshot）— 国内用户常用 api.moonshot.cn ----------
+  - model_name: kimi-k2-5
+    litellm_params:
+      model: moonshot/kimi-k2.5 # 请改为控制台实际模型 ID（如 kimi-k2.5、kimi-latest 等）
+      api_key: os.environ/MOONSHOT_API_KEY
+      # 国内 endpoint 推荐用环境变量（与 LiteLLM Moonshot 文档一致）：
+      #   export MOONSHOT_API_BASE=https://api.moonshot.cn/v1
+      # 若需在 YAML 内写死，可尝试取消下一行（视 LiteLLM 版本是否支持）：
+      # api_base: https://api.moonshot.cn/v1
+      # <<: *web_search_defaults
+
+  # ---------- 豆包（火山引擎方舟）— model 一般为 volcengine/<EndpointID> ----------
+  - model_name: doubao-chat
+    litellm_params:
+      # 将 ep-xxxx 替换为方舟控制台「在线推理」里复制的 Endpoint ID
+      model: volcengine/ep-your-endpoint-id
+      api_key: os.environ/VOLCENGINE_API_KEY
+      # <<: *web_search_defaults
+
+  # ---------- 可选：有 Google AI Studio / Vertex 的同学，用原生 Google Search 联网 ----------
+  - model_name: gemini-25-flash-search
+    litellm_params:
+      model: gemini/gemini-2.5-flash
+      api_key: os.environ/GEMINI_API_KEY
+      <<: *web_search_defaults
+
+litellm_settings:
+  # 下游不认识的参数尽量丢弃，避免豆包/Kimi 与 web_search_options 组合时整请求失败
+  drop_params: true
+
+general_settings:
+  master_key: sk-job-mailer-local
+  # 默认监听 http://0.0.0.0:4000
+
+# 可选：写入 Moonshot 国内 Base（若不想在 shell 里 export）
+# environment_variables:
+#   MOONSHOT_API_BASE: "https://api.moonshot.cn/v1"

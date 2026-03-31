@@ -28,7 +28,7 @@ body {
 .app {
   max-width: 920px;
   margin: 0 auto;
-  padding: 20px 24px 40px;
+  padding: 24px 28px 48px;
 }
 
 .top {
@@ -37,9 +37,9 @@ body {
   justify-content: space-between;
   gap: 16px;
   flex-wrap: wrap;
-  margin-bottom: 16px;
+  margin-bottom: 18px;
   border-bottom: 1px solid var(--border);
-  padding-bottom: 12px;
+  padding-bottom: 14px;
 }
 
 .title {
@@ -73,29 +73,48 @@ body {
 .main {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 24px;
 }
 
 .panel {
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: 12px;
-  padding: 16px 18px;
+  padding: 18px 20px;
 }
 
 .panel h2 {
-  margin: 0 0 12px;
+  margin: 0 0 14px;
   font-size: 0.95rem;
   font-weight: 600;
   color: var(--muted);
 }
 
+.panel h2 + .hint {
+  margin-top: 0;
+  margin-bottom: 14px;
+}
+
+.settings-subblock-title {
+  margin: 1.1rem 0 0.35rem;
+  padding-top: 0.85rem;
+  border-top: 1px solid var(--border);
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: var(--text);
+  letter-spacing: -0.01em;
+}
+
 .label {
   display: block;
-  margin-top: 10px;
-  margin-bottom: 6px;
+  margin-top: 12px;
+  margin-bottom: 8px;
   font-size: 12px;
   color: var(--muted);
+}
+
+.panel h2 + .label {
+  margin-top: 0;
 }
 
 .label.checkbox-label {
@@ -114,7 +133,7 @@ body {
 
 .field {
   width: 100%;
-  padding: 10px 12px;
+  padding: 11px 14px;
   border-radius: 8px;
   border: 1px solid var(--border);
   background: var(--bg);
@@ -128,7 +147,7 @@ body {
 }
 
 .field.tall {
-  min-height: 140px;
+  min-height: 152px;
   resize: vertical;
 }
 
@@ -182,13 +201,19 @@ body {
 }
 
 .send-row {
-  margin-top: 16px;
+  margin-top: 18px;
 }
 
 .hint {
-  margin: 8px 0 0;
+  margin: 10px 0 0;
   font-size: 12px;
   color: var(--muted);
+  line-height: 1.5;
+}
+
+.field + .hint,
+.label + .hint {
+  margin-top: 8px;
 }
 
 .hint code {
@@ -198,6 +223,57 @@ body {
   border-radius: 4px;
 }
 
+.prompt-example {
+  margin: 14px 0 18px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px 14px 14px;
+  background: rgba(0, 0, 0, 0.18);
+}
+
+.prompt-example summary {
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 13px;
+  user-select: none;
+}
+
+.prompt-example summary::-webkit-details-marker {
+  color: var(--muted);
+}
+
+.example-label {
+  margin: 10px 0 6px;
+}
+
+.muted-tag {
+  font-size: 12px;
+  color: var(--muted);
+  font-family: ui-monospace, monospace;
+}
+
+.example-block {
+  margin: 0 0 10px;
+  padding: 12px 14px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 13px;
+  line-height: 1.5;
+  border-radius: 6px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  max-height: 260px;
+  overflow-y: auto;
+}
+
+.example-block.mono {
+  max-height: none;
+}
+
+.example-block.prompt-ref {
+  max-height: min(420px, 55vh);
+}
+
 .mono {
   font-family: ui-monospace, monospace;
   font-size: 11px;
@@ -205,8 +281,8 @@ body {
 }
 
 .banner {
-  margin: 0 0 12px;
-  padding: 8px 12px;
+  margin: 0 0 14px;
+  padding: 10px 14px;
   border-radius: 8px;
   font-size: 13px;
 }
@@ -236,28 +312,45 @@ body {
 .preset-row {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
-  margin-bottom: 12px;
+  gap: 10px;
+  margin-top: 2px;
+  margin-bottom: 16px;
 }
 
 .preset-chip {
   font-size: 12px;
-  padding: 6px 12px;
+  padding: 8px 14px;
+}
+
+.preset-chip--recommended {
+  border-color: rgba(91, 140, 255, 0.5);
+  background: rgba(91, 140, 255, 0.1);
+}
+
+.preset-badge {
+  margin-left: 8px;
+  padding: 1px 6px;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--accent);
+  border-radius: 4px;
+  background: rgba(91, 140, 255, 0.15);
+  vertical-align: middle;
 }
 
 .history-list {
   list-style: none;
-  margin: 12px 0 0;
+  margin: 14px 0 0;
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 14px;
 }
 
 .history-card {
   border: 1px solid var(--border);
   border-radius: 10px;
-  padding: 12px 14px;
+  padding: 14px 16px;
   background: var(--bg);
 }
 

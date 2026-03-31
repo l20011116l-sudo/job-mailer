@@ -2,19 +2,27 @@ import { useCallback, useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import { LLM_PRESETS } from "./llmPresets";
+import {
+  PROMPT_EXAMPLE_BODY,
+  PROMPT_EXAMPLE_NOTE,
+  PROMPT_EXAMPLE_SUBJECT,
+  PROMPT_LAYOUT_BLURB,
+  REFERENCE_SYSTEM_PROMPT,
+  REFERENCE_USER_SUFFIX_PROMPT,
+} from "./promptExample";
 
 type StoredSettings = {
   llmBaseUrl: string;
   llmApiKey: string;
   llmModel: string;
-  /** 第二轮：邮件 JSON 的 system；空则后端填入内置短契约 */
+  /** 单次调用的 system；空则请求中不包含 system 消息 */
   systemPrompt: string;
-  /** 第一轮：JD 对齐专用 system；空则用内置 JD 对齐 prompt */
-  jdAlignmentSystemPrompt: string;
-  /** 第二轮：拼在 user 消息末尾的硬性约束；空则用内置 USER_GENERATION_TAIL */
+  /** 拼在 user 末尾（岗位描述与策略之后）；空则不加 */
   emailUserSuffixPrompt: string;
   resumeProfile: string;
-  enableJdAlignmentDigest: boolean;
+  /** 请求体附加 web_search_options（LiteLLM + Gemini → Google Search Grounding） */
+  enableGeminiGoogleSearch: boolean;
+  geminiWebSearchContextSize: "low" | "medium" | "high";
   smtpHost: string;
   smtpPort: number;
   smtpUsername: string;
@@ -27,10 +35,10 @@ const emptySettings = (): StoredSettings => ({
   llmApiKey: "",
   llmModel: "",
   systemPrompt: "",
-  jdAlignmentSystemPrompt: "",
   emailUserSuffixPrompt: "",
   resumeProfile: "",
-  enableJdAlignmentDigest: true,
+  enableGeminiGoogleSearch: false,
+  geminiWebSearchContextSize: "medium",
   smtpHost: "",
   smtpPort: 587,
   smtpUsername: "",
@@ -81,6 +89,14 @@ function isLikelyAutomatedLocalPart(local: string): boolean {
   );
 }
 
+function normalizeSearchContextSize(
+  raw: string | undefined,
+): "low" | "medium" | "high" {
+  const t = (raw ?? "").trim().toLowerCase();
+  if (t === "low" || t === "high") return t;
+  return "medium";
+}
+
 function pickRecipientEmail(candidates: string[]): string | null {
   if (candidates.length === 0) return null;
   const human = candidates.find((c) => {
@@ -122,9 +138,9 @@ function App() {
         const s = await invoke<StoredSettings>("load_settings");
         setSettings({
           ...s,
-          enableJdAlignmentDigest: s.enableJdAlignmentDigest ?? true,
-          jdAlignmentSystemPrompt: s.jdAlignmentSystemPrompt ?? "",
           emailUserSuffixPrompt: s.emailUserSuffixPrompt ?? "",
+          enableGeminiGoogleSearch: s.enableGeminiGoogleSearch ?? false,
+          geminiWebSearchContextSize: normalizeSearchContextSize(s.geminiWebSearchContextSize),
         });
         setLoadError(null);
       } catch (e) {
@@ -158,6 +174,18 @@ function App() {
     setToast(msg);
     window.setTimeout(() => setToast(null), 3200);
   }, []);
+
+  const copyPromptRef = useCallback(
+    async (text: string, label: string) => {
+      try {
+        await navigator.clipboard.writeText(text);
+        showToast(`已复制：${label}`);
+      } catch {
+        showToast("复制失败，请手动选择文本复制");
+      }
+    },
+    [showToast],
+  );
 
   const pickStrategy = async () => {
     const path = await open({
@@ -209,9 +237,9 @@ function App() {
           strategyMd.trim() ||
           "（未选择策略文件：无独立论据资产。第二段仅允许对齐 JD/个人简介中已有信息，并诚实说明具体经历见简历附件；禁止虚构项目；勿用「学习热情」等空话凑篇幅。）",
         resumeProfile: settings.resumeProfile,
-        enableJdAlignmentDigest: settings.enableJdAlignmentDigest,
-        jdAlignmentSystemPrompt: settings.jdAlignmentSystemPrompt,
         emailUserSuffixPrompt: settings.emailUserSuffixPrompt,
+        enableGeminiGoogleSearch: settings.enableGeminiGoogleSearch,
+        geminiWebSearchContextSize: settings.geminiWebSearchContextSize,
       });
       setSubject(result.subject);
       setBody(result.body);
@@ -384,25 +412,20 @@ function App() {
               )}
             </div>
             {strategyMd ? (
-              <p className="hint">策略已载入，约 {strategyMd.length} 字。正文「可核对事实」的上限主要由策略文件决定，建议写入项目名、成果、工具等可展开条目。</p>
+              <p className="hint">策略已载入，约 {strategyMd.length} 字。</p>
             ) : (
               <p className="hint">
-                未选策略文件时：仍会用「JD 岗位事实预生成」中的业务白话 / JD 事实 / 岗位侧要求（若已开启）与系统内置准备模块支撑首段；第二段不得虚构经历。若有可展开的项目或实习，可载入策略 Markdown 提高上限。
+                未选策略文件时：撰写区仍会附带占位说明；具体论证与语气完全由你在「设置」里的 prompt 决定。
               </p>
             )}
           </section>
 
           <section className="panel">
             <h2>生成与审核</h2>
-            {settings.enableJdAlignmentDigest ? (
-              <p className="hint">
-                已开启「JD 岗位事实预生成」：第一次调用按 JD 生成三段备忘录——「业务白话」「JD事实」「岗位侧要求」；第二次调用再写完整正文（约四五百字），与系统「内置准备模块」对齐。可在「设置」中关闭以对比效果。
-              </p>
-            ) : (
-              <p className="hint">
-                已关闭「JD 岗位事实预生成」：仅调用一次模型生成全文（仍以约四五百字为目标），更省耗时与 token。可在「设置」中重新开启。
-              </p>
-            )}
+            <p className="hint">
+              每次点击「生成邮件」仅发起<strong>一次</strong>模型请求；回复仍须为含 <code className="mono">subject</code>、<code className="mono">body</code> 的
+              JSON（由你在设置中的 system / 约束里说明）。若需换 prompt 做对比，请在设置里修改后保存再生成。
+            </p>
             <div className="row gap wrap">
               <button type="button" className="btn primary" onClick={generate} disabled={!!busy}>
                 生成邮件
@@ -491,16 +514,23 @@ function App() {
         <main className="main settings">
           <section className="panel">
             <h2>大模型（OpenAI 兼容 /chat/completions）</h2>
-            <p className="hint">点击下列预设可一键填入 Base URL；API Key 仍须自行填写。豆包等区域与 Endpoint 以火山引擎控制台为准。</p>
+            <p className="hint">
+              点击下列预设可一键填入 Base URL；API Key 仍须自行填写。豆包等区域与 Endpoint 以火山引擎控制台为准。
+              豆包方舟：「模型名」须填在线推理里推理接入点的 Endpoint ID（形如 <code className="mono">ep-…</code>
+              ），勿填控制台展示的模型名称（如 <code className="mono">Doubao-Seed-2.0-pro</code>），否则会报 404 / NotFound。
+            </p>
             <div className="preset-row">
               {LLM_PRESETS.map((p) => (
                 <button
-                  key={p.label}
+                  key={p.baseUrl + p.label}
                   type="button"
-                  className="btn secondary preset-chip"
+                  className={
+                    "btn secondary preset-chip" + (p.recommended ? " preset-chip--recommended" : "")
+                  }
                   onClick={() => applyPreset(p.baseUrl, p.modelPlaceholder)}
                 >
                   {p.label}
+                  {p.recommended ? <span className="preset-badge">推荐</span> : null}
                 </button>
               ))}
             </div>
@@ -526,19 +556,41 @@ function App() {
               onChange={(e) => setSettings({ ...settings, llmModel: e.target.value })}
               placeholder="如 moonshot-v1-8k"
             />
+            <h3 className="settings-subblock-title">Gemini 联网（Google Search）</h3>
+            <p className="hint">勾选后主生成请求会附带 <code className="mono">web_search_options</code>（需 LiteLLM 等转发至 Gemini）。豆包/Kimi 请在网关 <code className="mono">drop_params</code> 或勿勾选。</p>
             <label className="label checkbox-label">
               <input
                 type="checkbox"
-                checked={settings.enableJdAlignmentDigest}
+                checked={settings.enableGeminiGoogleSearch}
                 onChange={(e) =>
-                  setSettings({ ...settings, enableJdAlignmentDigest: e.target.checked })
+                  setSettings({ ...settings, enableGeminiGoogleSearch: e.target.checked })
                 }
               />
               <span>
-                生成邮件前先根据 JD 生成岗位侧事实备忘录（多一次 API，首段更易呈现「调研感」；正文目标约四五百字）
+                Gemini 联网（Google Search）：在 API 请求中加入 <code className="mono">web_search_options</code>
+                ，需 LiteLLM 等网关转发至 Gemini；豆包/Kimi 等请在网关开启 <code className="mono">drop_params</code> 或勿勾选
               </span>
             </label>
-            <p className="hint">关闭后仅单次调用生成全文，便于对比效果与节省用量。修改后请点下方「保存设置」。</p>
+            <label className="label">联网检索上下文规模</label>
+            <select
+              className="field narrow"
+              value={settings.geminiWebSearchContextSize}
+              onChange={(e) =>
+                setSettings({
+                  ...settings,
+                  geminiWebSearchContextSize: normalizeSearchContextSize(e.target.value),
+                })
+              }
+              disabled={!settings.enableGeminiGoogleSearch}
+            >
+              <option value="low">low</option>
+              <option value="medium">medium</option>
+              <option value="high">high</option>
+            </select>
+            <p className="hint">
+              直连 Google Gemini API 时请改用官方 <code className="mono">generateContent</code> +{" "}
+              <code className="mono">google_search</code> 工具；本应用通过 OpenAI 兼容字段对接 LiteLLM。
+            </p>
           </section>
 
           <section className="panel">
@@ -562,32 +614,68 @@ function App() {
           </section>
 
           <section className="panel">
-            <h2>生成 Prompt（两轮分离）</h2>
+            <h2>生成 Prompt（单次调用）</h2>
+            <p className="hint">{PROMPT_LAYOUT_BLURB}</p>
             <p className="hint">
-              <strong>第一轮</strong>仅做 JD→备忘录（第三方视角），<strong>第二轮</strong>才写求职邮件 JSON。留空则分别使用应用内置模板，避免把「写邮件」和「整理 JD」混在一条指令里。
+              后端仍期望模型输出可解析的 JSON（<code className="mono">subject</code>、<code className="mono">body</code>
+              ）。下方输入框<strong>留空则完全不注入</strong>；推荐全文仅作复制参考，不会自动写入。
             </p>
-            <label className="label">第一轮：JD 对齐（system）</label>
-            <textarea
-              className="field tall"
-              value={settings.jdAlignmentSystemPrompt}
-              onChange={(e) => setSettings({ ...settings, jdAlignmentSystemPrompt: e.target.value })}
-              placeholder="留空：使用内置「岗位信息整理」说明（第三方备忘录，非求职信）"
-              spellCheck={false}
-            />
-            <label className="label">第二轮：邮件生成（system）</label>
+            <details className="prompt-example">
+              <summary>① 推荐 System 全文（复制到下方「System」框）</summary>
+              <p className="hint">角色、JSON 契约、业务与实习细节标准、律所语体与「人味」约束等，放在 System。</p>
+              <div className="row gap wrap">
+                <button
+                  type="button"
+                  className="btn secondary"
+                  onClick={() => copyPromptRef(REFERENCE_SYSTEM_PROMPT, "推荐 System")}
+                >
+                  复制推荐 System
+                </button>
+              </div>
+              <pre className="example-block prompt-ref">{REFERENCE_SYSTEM_PROMPT}</pre>
+            </details>
+            <details className="prompt-example">
+              <summary>② 推荐 User 末尾补充（复制到下方「User 消息末尾补充」框）</summary>
+              <p className="hint">
+                会拼在<strong>岗位描述、策略 Markdown 之后</strong>，适合放「最后阅读」的篇幅与结构硬性约束；与 System 冲突时以本段为准。
+              </p>
+              <div className="row gap wrap">
+                <button
+                  type="button"
+                  className="btn secondary"
+                  onClick={() => copyPromptRef(REFERENCE_USER_SUFFIX_PROMPT, "推荐 User 末尾")}
+                >
+                  复制推荐 User 末尾
+                </button>
+              </div>
+              <pre className="example-block prompt-ref">{REFERENCE_USER_SUFFIX_PROMPT}</pre>
+            </details>
+            <details className="prompt-example">
+              <summary>③ 示例输出（仅供参考，非默认）</summary>
+              <p className="hint">{PROMPT_EXAMPLE_NOTE}</p>
+              <p className="example-label">
+                <span className="muted-tag">subject</span>
+              </p>
+              <pre className="example-block mono">{PROMPT_EXAMPLE_SUBJECT}</pre>
+              <p className="example-label">
+                <span className="muted-tag">body</span>
+              </p>
+              <pre className="example-block">{PROMPT_EXAMPLE_BODY}</pre>
+            </details>
+            <label className="label">System（可选）</label>
             <textarea
               className="field tall"
               value={settings.systemPrompt}
               onChange={(e) => setSettings({ ...settings, systemPrompt: e.target.value })}
-              placeholder="留空：由应用填入内置短契约（JSON 字段、禁编造等）"
+              placeholder="留空：请求中不包含 system 消息"
               spellCheck={false}
             />
-            <label className="label">第二轮：user 消息末尾硬性约束（可选）</label>
+            <label className="label">User 消息末尾补充（可选）</label>
             <textarea
               className="field tall"
               value={settings.emailUserSuffixPrompt}
               onChange={(e) => setSettings({ ...settings, emailUserSuffixPrompt: e.target.value })}
-              placeholder="留空：使用内置「硬性约束」全文（反套话、结构、结尾等），拼在岗位描述与策略之后"
+              placeholder="拼在岗位描述与策略之后；留空则不追加"
               spellCheck={false}
             />
           </section>

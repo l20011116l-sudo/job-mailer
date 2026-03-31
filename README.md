@@ -33,6 +33,8 @@ npm run tauri build
 ## 配置说明
 
 - **API**：填写 Base URL（无末尾斜杠）、Key、模型 ID。需厂商提供 Chat Completions 兼容端点。
+- **豆包 / Kimi 等**：可在本机前置 [LiteLLM](https://docs.litellm.ai/) 统一成 OpenAI 兼容出口。复制 `litellm.config.example.yaml` 填入密钥与 Endpoint，详见 [`docs/liteLLM-proxy-zh.md`](docs/liteLLM-proxy-zh.md)（示例 Base：`http://127.0.0.1:4000/v1`）。
+- **Gemini 联网**：设置 →「大模型」卡片内、在「JD 岗位事实备忘录」与「个人简介」之间，有 **Gemini 联网（Google Search）** 勾选项；若看不到，说明当前 `.app` 较旧，请在本仓库执行 `npm run build && npm run tauri:build`（必要时先 `unset CI`）后，用新生成的 `src-tauri/target/release/bundle/macos/job-mailer.app` 覆盖安装。
 - **SMTP**：如 Gmail，请使用「应用专用密码」；端口常用 587（STARTTLS）。
 - **发件人**：需为可被 SMTP 认证的地址，格式可为 `姓名 <email@domain.com>`。
 
